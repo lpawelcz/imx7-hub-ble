@@ -27,10 +27,10 @@ UVI_UUID =		'00002a76-0000-1000-8000-00805f9b34fb'
 
 # The objects that we interact with.
 es_service = None
-hr_msrmt_chrc = None
-body_snsr_loc_chrc = None
-hr_ctrl_pt_chrc = None
-
+es_temp_chrc = None
+es_hum_chrc = None
+es_press_chrc = None
+es_uvi_chrc = None
 
 def generic_error_cb(error):
     print('D-Bus call failed: ' + str(error))
@@ -113,22 +113,36 @@ def hr_msrmt_changed_cb(iface, changed_props, invalidated_props):
 
 
 def start_client():
-    # Read the Body Sensor Location value and print it asynchronously.
-    body_snsr_loc_chrc[0].ReadValue({}, reply_handler=body_sensor_val_cb,
+    # Read the Temperature Sensor value and print it asynchronously.
+    es_temp_chrc[0].ReadValue({}, reply_handler=temp_val_cb,
                                     error_handler=generic_error_cb,
                                     dbus_interface=GATT_CHRC_IFACE)
 
-    # Listen to PropertiesChanged signals from the Heart Measurement
-    # Characteristic.
-    hr_msrmt_prop_iface = dbus.Interface(hr_msrmt_chrc[0], DBUS_PROP_IFACE)
-    hr_msrmt_prop_iface.connect_to_signal("PropertiesChanged",
-                                          hr_msrmt_changed_cb)
+    # Read the Humidity Sensor value and print it asynchronously.
+    es_hum_chrc[0].ReadValue({}, reply_handler=hum_val_cb,
+                                    error_handler=generic_error_cb,
+                                    dbus_interface=GATT_CHRC_IFACE)
 
-    # Subscribe to Heart Rate Measurement notifications.
-    hr_msrmt_chrc[0].StartNotify(reply_handler=hr_msrmt_start_notify_cb,
-                                 error_handler=generic_error_cb,
-                                 dbus_interface=GATT_CHRC_IFACE)
+    # Read the Pressure Sensor value and print it asynchronously.
+    es_press_chrc[0].ReadValue({}, reply_handler=press_val_cb,
+                                    error_handler=generic_error_cb,
+                                    dbus_interface=GATT_CHRC_IFACE)
 
+    # Read the UVI Sensor value and print it asynchronously.
+    es_uvi_chrc[0].ReadValue({}, reply_handler=uvi_val_cb,
+                                    error_handler=generic_error_cb,
+                                    dbus_interface=GATT_CHRC_IFACE)
+
+    # # Listen to PropertiesChanged signals from the Heart Measurement
+    # # Characteristic.
+    # hr_msrmt_prop_iface = dbus.Interface(hr_msrmt_chrc[0], DBUS_PROP_IFACE)
+    # hr_msrmt_prop_iface.connect_to_signal("PropertiesChanged",
+                                          # hr_msrmt_changed_cb)
+
+    # # Subscribe to Heart Rate Measurement notifications.
+    # hr_msrmt_chrc[0].StartNotify(reply_handler=hr_msrmt_start_notify_cb,
+                                 # error_handler=generic_error_cb,
+                                 # dbus_interface=GATT_CHRC_IFACE)
 
 def process_chrc(chrc_path):
     chrc = bus.get_object(BLUEZ_SERVICE_NAME, chrc_path)
@@ -218,7 +232,7 @@ def main():
             break
 
     if not es_service:
-        print('No Heart Rate Service found')
+        print('No Environment Sensing Service found')
         sys.exit(1)
 
     start_client()
