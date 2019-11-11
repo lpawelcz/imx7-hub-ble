@@ -19,13 +19,14 @@ DBUS_PROP_IFACE =    'org.freedesktop.DBus.Properties'
 GATT_SERVICE_IFACE = 'org.bluez.GattService1'
 GATT_CHRC_IFACE =    'org.bluez.GattCharacteristic1'
 
-HR_SVC_UUID =        '0000180d-0000-1000-8000-00805f9b34fb'
-HR_MSRMT_UUID =      '00002a37-0000-1000-8000-00805f9b34fb'
-BODY_SNSR_LOC_UUID = '00002a38-0000-1000-8000-00805f9b34fb'
-HR_CTRL_PT_UUID =    '00002a39-0000-1000-8000-00805f9b34fb'
+ENV_SENS_SVC_UUID =	'0000181a-0000-1000-8000-00805f9b34fb'
+TEMP_UUID =		'00002a6e-0000-1000-8000-00805f9b34fb'
+HUM_UUID =		'00002a6f-0000-1000-8000-00805f9b34fb'
+PRESS_UUID =		'00002a6d-0000-1000-8000-00805f9b34fb'
+UVI_UUID =		'00002a76-0000-1000-8000-00805f9b34fb'
 
 # The objects that we interact with.
-hr_service = None
+es_service = None
 hr_msrmt_chrc = None
 body_snsr_loc_chrc = None
 hr_ctrl_pt_chrc = None
@@ -136,48 +137,51 @@ def process_chrc(chrc_path):
 
     uuid = chrc_props['UUID']
 
-    if uuid == HR_MSRMT_UUID:
-        global hr_msrmt_chrc
-        hr_msrmt_chrc = (chrc, chrc_props)
-    elif uuid == BODY_SNSR_LOC_UUID:
-        global body_snsr_loc_chrc
-        body_snsr_loc_chrc = (chrc, chrc_props)
-    elif uuid == HR_CTRL_PT_UUID:
-        global hr_ctrl_pt_chrc
-        hr_ctrl_pt_chrc = (chrc, chrc_props)
+    if uuid == TEMP_UUID:
+        global es_temp_chrc
+        es_temp_chrc = (chrc, chrc_props)
+    elif uuid == HUM_UUID:
+        global es_hum_chrc
+        es_hum_chrc = (chrc, chrc_props)
+    elif uuid == PRESS_UUID:
+        global es_press_chrc
+        es_press_chrc = (chrc, chrc_props)
+    elif uuid == UVI_UUID:
+	global es_uvi_chrc
+	es_uvi_chrc = (chrc, chrc_props)
     else:
         print('Unrecognized characteristic: ' + uuid)
 
     return True
 
 
-def process_hr_service(service_path, chrc_paths):
+def process_es_service(service_path, chrc_paths):
     service = bus.get_object(BLUEZ_SERVICE_NAME, service_path)
     service_props = service.GetAll(GATT_SERVICE_IFACE,
                                    dbus_interface=DBUS_PROP_IFACE)
 
     uuid = service_props['UUID']
 
-    if uuid != HR_SVC_UUID:
+    if uuid != ENV_SENS_SVC_UUID:
         return False
 
-    print('Heart Rate Service found: ' + service_path)
+    print('Environment Sensing Service found: ' + service_path)
 
     # Process the characteristics.
     for chrc_path in chrc_paths:
         process_chrc(chrc_path)
 
-    global hr_service
-    hr_service = (service, service_props, service_path)
+    global es_service
+    es_service = (service, service_props, service_path)
 
     return True
 
 
 def interfaces_removed_cb(object_path, interfaces):
-    if not hr_service:
+    if not es_service:
         return
 
-    if object_path == hr_service[2]:
+    if object_path == es_service[2]:
         print('Service was removed')
         mainloop.quit()
 
@@ -210,10 +214,10 @@ def main():
 
         chrc_paths = [d for d in chrcs if d.startswith(path + "/")]
 
-        if process_hr_service(path, chrc_paths):
+        if process_es_service(path, chrc_paths):
             break
 
-    if not hr_service:
+    if not es_service:
         print('No Heart Rate Service found')
         sys.exit(1)
 
@@ -224,4 +228,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
