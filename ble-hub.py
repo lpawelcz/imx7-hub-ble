@@ -46,21 +46,26 @@ def read_val(device, service_id, filename, min_val, max_val, prev_val, error_val
     "read characteristic and perform sanity check, returns values as specified in Bluetooth characteristics specification"
     timeout = 3
     condition = True
+    # Do while result is not in range of sensor or has value that can be an error or 3 attempts pass
     while condition:
         timeout -= 1
+        # Read characteristic
         charac = device.char_read(service_id)
         int_val = int.from_bytes(charac, byteorder='little', signed=True)
+        # Check if there is need for second characteristic readout
         condition = (not (int_val >= min_val and int_val <= max_val and int_val != error_val)) and timeout
         if condition:
             f = open(filename, "a")
             date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             f.write("{}	{}\n".format(date, int_val))
             f.close()
+    # Value is still possible error after 3 characteristic readouts - consider as correct measurement
     if int_val == error_val:
         f = open(filename, "a")
         date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         f.write("{}	error value {} is real value\n".format(date, int_val))
         f.close()
+    # Several readouts in wrong range - take previous correct measurement
     elif not timeout:
         f = open(filename, "a")
         date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -72,6 +77,7 @@ def read_val(device, service_id, filename, min_val, max_val, prev_val, error_val
 
 
 try:
+    # write stdout also to log
     tee = subprocess.Popen(["tee", dump_file], stdin=subprocess.PIPE)
     os.dup2(tee.stdin.fileno(), sys.stdout.fileno())
     os.dup2(tee.stdin.fileno(), sys.stderr.fileno())
@@ -88,6 +94,7 @@ try:
     uvi_prev = 0
 
     while True:
+        # Read measurements from node
         int_temp = read_val(device, temp_service, temp_file, temp_min, temp_max, temp_prev, temp_error_val)
         temp_prev = int_temp
         int_hum = read_val(device, hum_service, hum_file, hum_min, hum_max, hum_prev, hum_error_val)
@@ -97,6 +104,7 @@ try:
         int_uvi = read_val(device, uvi_service, uvi_file, uvi_min, uvi_max, uvi_prev)
         uvi_prev = int_uvi
 
+        # Convert measurements to correct format according to BT spec - characteristics
         float_temp = float(int_temp) / 100;
         float_hum = float(int_hum) / 100;
         float_press = float(int_press) / 1000;
@@ -107,15 +115,13 @@ try:
         print("{}	Pressure:    {} hPa".format(date, float_press))
         print("{}	UV Index:    {}".format(date, int_uvi))
 
+        # Prepare and send data to Domoticz
         final_url = url + json + str(node1_temp) + nvalue + '0' + svalue + str(float_temp)
         requests.get(final_url)
-
         final_url = url + json + str(node1_hum) + nvalue + str(float_hum) + svalue + '0'
         requests.get(final_url)
-
         final_url = url + json + str(node1_press) + nvalue + '0' + svalue + str(float_press) + ';0'
         requests.get(final_url)
-
         final_url = url + json + str(node1_uv) + nvalue + '0' + svalue + str(int_uvi) + ';0'
         requests.get(final_url)
 
