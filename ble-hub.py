@@ -1,6 +1,9 @@
 import requests
 import time
 import pygatt
+import os
+import sys
+import subprocess
 from datetime import datetime
 
 adapter = pygatt.backends.GATTToolBackend()
@@ -16,6 +19,7 @@ press_max = 1100000
 uvi_min = 0
 uvi_max = 45
 
+node1_addr = 'A4:CF:12:75:BB:66'
 node1_temp = 4
 node1_hum = 3
 node1_press = 2
@@ -31,10 +35,12 @@ hum_service = "00002a6f-0000-1000-8000-00805f9b34fb"
 press_service = "00002a6d-0000-1000-8000-00805f9b34fb"
 uvi_service = "00002a76-0000-1000-8000-00805f9b34fb"
 
-temp_file = "/home/alarm/temperature.log"
-hum_file = "/home/alarm/humidity.log"
-press_file = "/home/alarm/pressure.log"
-uvi_file = "/home/alarm/uvi.log"
+log_dir = os.path.dirname(os.path.realpath(__file__))
+temp_file = log_dir + "/log/temperature.log"
+hum_file = log_dir + "/log/humidity.log"
+press_file = log_dir + "/log/pressure.log"
+uvi_file = log_dir + "/log/uvi.log"
+dump_file = log_dir + "/log/stdout.dump"
 
 def read_val(device, service_id, filename, min_val, max_val, prev_val, error_val = -999):
     "read characteristic and perform sanity check, returns values as specified in Bluetooth characteristics specification"
@@ -47,15 +53,18 @@ def read_val(device, service_id, filename, min_val, max_val, prev_val, error_val
         condition = (not (int_val >= min_val and int_val <= max_val and int_val != error_val)) and timeout
         if condition:
             f = open(filename, "a")
-            f.write(datetime.now().strftime('%Y-%m-%d %H:%M:%S') + " val: " + str(int_val) + "\n")
+            date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            f.write("{}	{}\n".format(date, int_val))
             f.close()
     if int_val == error_val:
         f = open(filename, "a")
-        f.write(datetime.now().strftime('%Y-%m-%d %H:%M:%S') + " error val is real val\n")
+        date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        f.write("{}	error value {} is real value\n".format(date, int_val))
         f.close()
     elif not timeout:
         f = open(filename, "a")
-        f.write(datetime.now().strftime('%Y-%m-%d %H:%M:%S') + " timeout\n")
+        date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        f.write("{}	value out of sensor scope {}, previous value {} as result \n".format(date, int_val, prev_val))
         f.close()
         int_val = prev_val
 
@@ -63,9 +72,16 @@ def read_val(device, service_id, filename, min_val, max_val, prev_val, error_val
 
 
 try:
+    tee = subprocess.Popen(["tee", dump_file], stdin=subprocess.PIPE)
+    os.dup2(tee.stdin.fileno(), sys.stdout.fileno())
+    os.dup2(tee.stdin.fileno(), sys.stderr.fileno())
+
     adapter.start()
-    device = adapter.connect('A4:CF:12:75:BB:66')
-    print("connected to A4:CF:12:75:BB:66")
+
+    device = adapter.connect(node1_addr)
+    date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    print("{}	Connected to {}".format(date, node1_addr))
+
     temp_prev = 0
     hum_prev = 0
     press_prev = 0
@@ -85,11 +101,11 @@ try:
         float_hum = float(int_hum) / 100;
         float_press = float(int_press) / 1000;
 
-        print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-        print("Temperature: {} deg C".format(float_temp))
-        print("Humidity: {}%".format(float_hum))
-        print("Pressure: {} Pa".format(float_press))
-        print("UV Index: {}".format(int_uvi))
+        date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        print("{}	Temperature: {} deg C".format(date, float_temp))
+        print("{}	Humidity:    {} %".format(date, float_hum))
+        print("{}	Pressure:    {} hPa".format(date, float_press))
+        print("{}	UV Index:    {}".format(date, int_uvi))
 
         final_url = url + json + str(node1_temp) + nvalue + '0' + svalue + str(float_temp)
         requests.get(final_url)
