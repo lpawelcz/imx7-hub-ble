@@ -1,0 +1,13 @@
+[Unit]
+Description=ble-hub service
+After=network.target network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+Restart=always
+ExecStart=/usr/bin/python3 /home/alarm/code/imx7-hub-ble/ble-hub.py
+
+[Install]
+WantedBy=multi-user.target
