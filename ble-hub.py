@@ -8,7 +8,7 @@ from datetime import datetime
 
 adapter = pygatt.backends.GATTToolBackend()
 
-cycle_time = 5
+cycle_time = 1
 
 temp_min = -4000
 temp_max = 8500
@@ -26,6 +26,8 @@ node1_temp = 4
 node1_hum = 3
 node1_press = 2
 node1_uv = 1
+
+nodes = set([node1_addr])
 
 url = 'http://192.168.100.101:8080'
 json = '/json.htm?type=command&param=udevice&idx='
@@ -88,82 +90,96 @@ def read_val(device, service_id, filename, min_val, max_val, prev_val, error_val
     return int_val
 
 def main():
-    try:
-        # write stdout also to log
-        tee = subprocess.Popen(["tee", dump_file], stdin=subprocess.PIPE)
-        os.dup2(tee.stdin.fileno(), sys.stdout.fileno())
-        os.dup2(tee.stdin.fileno(), sys.stderr.fileno())
+    # write stdout also to log
+    tee = subprocess.Popen(["tee", dump_file], stdin=subprocess.PIPE)
+    os.dup2(tee.stdin.fileno(), sys.stdout.fileno())
+    os.dup2(tee.stdin.fileno(), sys.stderr.fileno())
 
-        adapter.start()
+    adapter.start()
 
-        while True:
-            try:
-                date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                device = adapter.connect(node1_addr)
-                print("{}	Connected to {}".format(date, node1_addr))
-            except:
-                print("{}	Timeout when connecting to {}".format(date, node1_addr))
-                continue
-
-            temp_prev = 0
-            hum_prev = 0
-            press_prev = 0
-            uvi_prev = 0
-
-            # Read measurements from node
-            int_temp = read_val(device, temp_service, temp_file, temp_min, temp_max, temp_prev, temp_error_val)
-            if int_temp == -1:
-                return -1
-            temp_prev = int_temp
-            int_hum = read_val(device, hum_service, hum_file, hum_min, hum_max, hum_prev, hum_error_val)
-            if int_hum == -1:
-                return -1
-            hum_prev = int_hum
-            int_press = read_val(device, press_service, press_file, press_min, press_max, press_prev)
-            if int_press == -1:
-                return -1
-            press_prev = int_press
-            int_uvi = read_val(device, uvi_service, uvi_file, uvi_min, uvi_max, uvi_prev)
-            if int_uvi == -1:
-                return -1
-            uvi_prev = int_uvi
-
-            date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            try:
-                device.disconnect()
-                print("{}	Disconnected from {}".format(date, node1_addr))
-            except:
-                print("{}	Already disconnected from {}".format(date, node1_addr))
-
-            # Convert measurements to correct format according to BT spec - characteristics
-            float_temp = float(int_temp) / 100;
-            float_hum = float(int_hum) / 100;
-            float_press = float(int_press) / 1000;
-
-            date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            print("{}	Temperature: {} deg C".format(date, float_temp))
-            print("{}	Humidity:    {} %".format(date, float_hum))
-            print("{}	Pressure:    {} hPa".format(date, float_press))
-            print("{}	UV Index:    {}".format(date, int_uvi))
-
-            # Prepare and send data to Domoticz
-            final_url = url + json + str(node1_temp) + nvalue + '0' + svalue + str(float_temp)
-            requests.get(final_url)
-            final_url = url + json + str(node1_hum) + nvalue + str(float_hum) + svalue + '0'
-            requests.get(final_url)
-            final_url = url + json + str(node1_press) + nvalue + '0' + svalue + str(float_press) + ';0'
-            requests.get(final_url)
-            final_url = url + json + str(node1_uv) + nvalue + '0' + svalue + str(int_uvi) + ';0'
-            requests.get(final_url)
-
-            time.sleep(cycle_time);
-
-    finally:
+    while True:
         try:
-            device.disconnect()
-            print("{}	Disconnected from {}".format(date, node1_addr))
-        except:
-            print("{}	Already disconnected from {}".format(date, node1_addr))
-        adapter.stop()
+            devices = adapter.scan(timeout = 1)
+        except pygatt.exceptions.BLEError:
+            adapter.stop()
+            adapter.start()
+            devices = adapter.scan(timeout = 1)
+        addr_list = [i["address"] for i in devices]
+        scanned_nodes = set(addr_list)
+        intersect = scanned_nodes.intersection(nodes)
+        avail_nodes = list(intersect)
+        print(avail_nodes)
+        for node_addr in avail_nodes:
+            try:
+                try:
+                    date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    device = adapter.connect(node_addr)
+                    print("{}	Connected to {}".format(date, node_addr))
+                except:
+                    print("{}	Timeout when connecting to {}".format(date, node_addr))
+                    continue
+
+                temp_prev = 0
+                hum_prev = 0
+                press_prev = 0
+                uvi_prev = 0
+
+                # Read measurements from node
+                int_temp = read_val(device, temp_service, temp_file, temp_min, temp_max, temp_prev, temp_error_val)
+                if int_temp == -1:
+                    return -1
+                temp_prev = int_temp
+                int_hum = read_val(device, hum_service, hum_file, hum_min, hum_max, hum_prev, hum_error_val)
+                if int_hum == -1:
+                    return -1
+                hum_prev = int_hum
+                int_press = read_val(device, press_service, press_file, press_min, press_max, press_prev)
+                if int_press == -1:
+                    return -1
+                press_prev = int_press
+                int_uvi = read_val(device, uvi_service, uvi_file, uvi_min, uvi_max, uvi_prev)
+                if int_uvi == -1:
+                    return -1
+                uvi_prev = int_uvi
+
+                date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                try:
+                    device.disconnect()
+                    print("{}	Disconnected from {}".format(date, node_addr))
+                except:
+                    print("{}	Already disconnected from {}".format(date, node_addr))
+
+                # Convert measurements to correct format according to BT spec - characteristics
+                float_temp = float(int_temp) / 100;
+                float_hum = float(int_hum) / 100;
+                float_press = float(int_press) / 1000;
+
+                date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                print("{}	Temperature: {} deg C".format(date, float_temp))
+                print("{}	Humidity:    {} %".format(date, float_hum))
+                print("{}	Pressure:    {} hPa".format(date, float_press))
+                print("{}	UV Index:    {}".format(date, int_uvi))
+
+                # Prepare and send data to Domoticz
+                final_url = url + json + str(node1_temp) + nvalue + '0' + svalue + str(float_temp)
+                requests.get(final_url)
+                final_url = url + json + str(node1_hum) + nvalue + str(float_hum) + svalue + '0'
+                requests.get(final_url)
+                final_url = url + json + str(node1_press) + nvalue + '0' + svalue + str(float_press) + ';0'
+                requests.get(final_url)
+                final_url = url + json + str(node1_uv) + nvalue + '0' + svalue + str(int_uvi) + ';0'
+                requests.get(final_url)
+
+
+            finally:
+                try:
+                    device.disconnect()
+                    print("{}	Disconnected from {}".format(date, node_addr))
+                except:
+                    print("{}	Already disconnected from {}".format(date, node_addr))
+
+        time.sleep(cycle_time);
+
+    adapter.stop()
 
 main()
