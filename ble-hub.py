@@ -22,10 +22,10 @@ uvi_min = 0
 uvi_max = 45
 
 node1_addr = 'A4:CF:12:75:BB:66'
-node1_temp = 4
-node1_hum = 3
-node1_press = 2
-node1_uv = 1
+node1_uv = 5
+node1_temp = 6
+node1_hum = 7
+node1_press = 8
 
 url = 'http://192.168.100.101:8080'
 json = '/json.htm?type=command&param=udevice&idx='
@@ -44,7 +44,7 @@ press_file = log_dir + "/log/pressure.log"
 uvi_file = log_dir + "/log/uvi.log"
 dump_file = log_dir + "/log/stdout.dump"
 
-def read_val(device, service_id, filename, min_val, max_val, prev_val, error_val = -999):
+def read_val(device, characteristic_uuid, filename, min_val, max_val, prev_val, error_val = -999):
     "read characteristic and perform sanity check, returns values as specified in Bluetooth characteristics specification"
     timeout = 3
     condition = True
@@ -53,11 +53,11 @@ def read_val(device, service_id, filename, min_val, max_val, prev_val, error_val
         timeout -= 1
         # Read characteristic
         try:
-            charac = device.char_read(service_id)
+            charac = device.char_read(characteristic_uuid)
         except:
             date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             condition = timeout
-            print("{}	Failed to read characteristic {}".format(date, service_id))
+            print("{}	Failed to read characteristic {}".format(date, characteristic_uuid))
             if not condition:
                 return -1
             else:
@@ -113,19 +113,23 @@ def main():
             # Read measurements from node
             int_temp = read_val(device, temp_service, temp_file, temp_min, temp_max, temp_prev, temp_error_val)
             if int_temp == -1:
-                return -1
+                # return -1
+                continue
             temp_prev = int_temp
             int_hum = read_val(device, hum_service, hum_file, hum_min, hum_max, hum_prev, hum_error_val)
             if int_hum == -1:
-                return -1
+                # return -1
+                continue
             hum_prev = int_hum
             int_press = read_val(device, press_service, press_file, press_min, press_max, press_prev)
             if int_press == -1:
-                return -1
+                # return -1
+                continue
             press_prev = int_press
             int_uvi = read_val(device, uvi_service, uvi_file, uvi_min, uvi_max, uvi_prev)
             if int_uvi == -1:
-                return -1
+                # return -1
+                continue
             uvi_prev = int_uvi
 
             date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -155,6 +159,7 @@ def main():
             requests.get(final_url)
             final_url = url + json + str(node1_uv) + nvalue + '0' + svalue + str(int_uvi) + ';0'
             requests.get(final_url)
+
 
             time.sleep(cycle_time);
 
