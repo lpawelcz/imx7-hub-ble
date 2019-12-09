@@ -27,7 +27,7 @@ node1_temp = 6
 node1_hum = 7
 node1_press = 8
 
-url = 'http://192.168.100.101:8080'
+url = 'http://127.0.0.1:8080'
 json = '/json.htm?type=command&param=udevice&idx='
 nvalue = '&nvalue='
 svalue = '&svalue='
